@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 1. Base de Datos PostgreSQL 17
+  postgres_db:
+    image: postgres:17-alpine
+    container_name: db_analisis_financiero
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_net
+
+  # 2. Control de Migraciones con Flyway
+  flyway:
+    image: flyway/flyway:9.16.0
+    container_name: flyway_migrator
+    command:
+      - -url=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      - -user=${DB_USER}
+      - -password=${DB_PASSWORD}
+      - migrate
+    volumes:
+      - ./backend/db/migrations:/flyway/sql
+    depends_on:
+      - postgres_db
+    networks:
+      - app_net
+
+  # 3. Backend (FastAPI)
+  backend:
+    build: ./backend
+    container_name: api_analisis_financiero
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres_db
+    networks:
+      - app_net
+
+volumes:
+  postgres_data:
+
+networks:
+  app_net:
+    driver: bridge
