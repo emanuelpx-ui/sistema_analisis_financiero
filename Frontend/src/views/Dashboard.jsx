@@ -1,20 +1,40 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Navbar, Nav, Button } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Navbar, Nav, Button, Spinner } from 'react-bootstrap';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import SettingsIcon from '@mui/icons-material/Settings';
 
-// Importamos el nuevo componente
 import Cartera from './Cartera'; 
+import AlertasRiesgo from './AlertasRiesgo';
 
 export default function Dashboard({ user, onLogout }) {
-  // Estado para controlar qué vista se muestra (por defecto 'panel')
   const [vistaActiva, setVistaActiva] = useState('panel');
+  const [kpis, setKpis] = useState(null);
+  const [loadingKpis, setLoadingKpis] = useState(true);
+
+  // Consulta dinámica de KPIs desde la base de datos (HU-010)
+  const fetchKpis = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/creditos/kpis');
+      if (response.ok) {
+        const data = await response.json();
+        setKpis(data);
+      }
+    } catch (error) {
+      console.error("Error al cargar KPIs:", error);
+    } finally {
+      setLoadingKpis(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKpis();
+  }, [vistaActiva]);
 
   return (
     <div className="d-flex flex-column min-vh-100 bg-light">
-      {/* Barra de navegación superior */}
+      {/* Barra superior */}
       <Navbar bg="dark" variant="dark" expand="lg" className="px-4 shadow-sm z-3">
         <Navbar.Brand href="#home">Sistema de Análisis Financiero</Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
@@ -31,8 +51,7 @@ export default function Dashboard({ user, onLogout }) {
       </Navbar>
 
       <div className="d-flex flex-grow-1 overflow-hidden">
-        
-        {/* Menú Lateral interactivo */}
+        {/* Menú Lateral */}
         <div className="bg-dark text-white d-flex flex-column align-items-center py-3 shadow" style={{ width: '70px' }}>
           <Nav className="flex-column w-100 gap-4 mt-2">
             <Nav.Link 
@@ -68,59 +87,91 @@ export default function Dashboard({ user, onLogout }) {
           </Nav>
         </div>
 
-        {/* Contenido dinámico (Cambia según el icono presionado) */}
+        {/* Contenido principal */}
         <div className="flex-grow-1 p-5 overflow-auto">
           <Container fluid>
-            
             {vistaActiva === 'panel' && (
               <>
                 <Row className="mb-4">
                   <Col>
                     <h2>Panel General</h2>
-                    <p className="text-muted">Resumen ejecutivo y métricas del sistema FOFOMI Inteligente.</p>
+                    <p className="text-muted">Resumen ejecutivo y métricas en tiempo real del sistema FOFOMI Inteligente.</p>
                   </Col>
                 </Row>
-                <Row className="g-4">
-                  <Col md={4}>
-                    <Card className="shadow-sm border-0">
-                      <Card.Body>
-                        <Card.Title className="text-secondary">Clientes Registrados</Card.Title>
-                        <h3 className="fw-bold">1,240</h3>
-                        <Card.Text className="text-success small">+12% este mes</Card.Text>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={4}>
-                    <Card className="shadow-sm border-0">
-                      <Card.Body>
-                        <Card.Title className="text-secondary">Créditos Activos</Card.Title>
-                        <h3 className="fw-bold">850</h3>
-                        <Card.Text className="text-primary small">Cartera saludable</Card.Text>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={4}>
-                    <Card className="shadow-sm border-0">
-                      <Card.Body>
-                        <Card.Title className="text-secondary">Alertas de Riesgo</Card.Title>
-                        <h3 className="fw-bold text-danger">15</h3>
-                        <Card.Text className="text-danger small">Requieren revisión</Card.Text>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
+
+                {loadingKpis ? (
+                  <div className="text-center py-5">
+                    <Spinner animation="border" variant="primary" />
+                    <p className="text-muted mt-2">Cargando métricas de cartera...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Fila de KPIs */}
+                    <Row className="g-4">
+                      <Col md={3}>
+                        <Card className="shadow-sm border-0 h-100">
+                          <Card.Body>
+                            <Card.Title className="text-secondary small fw-bold text-uppercase">Monto Total Otorgado</Card.Title>
+                            <h3 className="fw-bold text-primary mt-2">
+                              ${kpis?.monto_total_otorgado?.toLocaleString('es-MX') || '0.00'}
+                            </h3>
+                            <Card.Text className="text-muted small">Capital colocado activo</Card.Text>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                      <Col md={3}>
+                        <Card className="shadow-sm border-0 h-100">
+                          <Card.Body>
+                            <Card.Title className="text-secondary small fw-bold text-uppercase">Total Créditos</Card.Title>
+                            <h3 className="fw-bold mt-2">{kpis?.total_creditos || 0}</h3>
+                            <Card.Text className="text-success small">Registrados en sistema</Card.Text>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                      <Col md={3}>
+                        <Card className="shadow-sm border-0 h-100">
+                          <Card.Body>
+                            <Card.Title className="text-secondary small fw-bold text-uppercase">Créditos en Riesgo</Card.Title>
+                            <h3 className="fw-bold text-warning mt-2">{kpis?.creditos_en_riesgo || 0}</h3>
+                            <Card.Text className="text-warning small">Requieren seguimiento</Card.Text>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                      <Col md={3}>
+                        <Card className="shadow-sm border-0 h-100">
+                          <Card.Body>
+                            <Card.Title className="text-secondary small fw-bold text-uppercase">% Riesgo Cartera</Card.Title>
+                            <h3 className="fw-bold text-danger mt-2">{kpis?.porcentaje_riesgo || 0}%</h3>
+                            <Card.Text className="text-danger small">Índice global de impago</Card.Text>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    </Row>
+
+                    {/* Nueva sección para incrustar Metabase */}
+                    <Row className="mt-4">
+                      <Col>
+                        <Card className="shadow-sm border-0">
+                          <Card.Body style={{ height: '600px' }}>
+                            <iframe
+                              src="http://localhost:3030/public/question/5fac926a-aedc-47d0-b572-cde93608c508"
+                              frameBorder="0"
+                              width="100%"
+                              height="100%"
+                              allowTransparency="true"
+                              title="Gráficas Metabase"
+                            ></iframe>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    </Row>
+                  </>
+                )}
               </>
             )}
 
             {vistaActiva === 'cartera' && <Cartera />}
-            
-            {vistaActiva === 'alertas' && (
-              <div>
-                <h2>Alertas de Riesgo</h2>
-                <p className="text-muted">Módulo en construcción...</p>
-              </div>
-            )}
-
+            {vistaActiva === 'alertas' && <AlertasRiesgo />}
           </Container>
         </div>
       </div>

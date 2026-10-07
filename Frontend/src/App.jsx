@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Login from './views/Login.jsx';
 import Dashboard from './views/Dashboard.jsx';
+import AlertasRiesgo from './views/AlertasRiesgo.jsx';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {

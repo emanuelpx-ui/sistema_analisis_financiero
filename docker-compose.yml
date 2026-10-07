@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+
   # 1. Base de Datos PostgreSQL 17
   postgres_db:
     image: postgres:17-alpine
@@ -22,11 +23,10 @@ services:
     image: flyway/flyway:9.16.0
     container_name: flyway_migrator
     command:
-      # <-- CAMBIO 2: Forzamos el puerto interno 5432 (Docker se comunica por este puerto internamente)
-      - -url=jdbc:postgresql://${DB_HOST}:5432/${DB_NAME} 
+      - -url=jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}
       - -user=${DB_USER}
       - -password=${DB_PASSWORD}
-      - -connectRetries=10  # <-- CAMBIO 3: Le damos paciencia para que espere a que Postgres encienda
+      - -connectRetries=10
       - migrate
     volumes:
       - ./backend/db/migrations:/flyway/sql
@@ -51,9 +51,86 @@ services:
     networks:
       - app_net
 
+  # 4. Airflow Inicializador
+  airflow-init:
+    image: apache/airflow:2.7.1
+    container_name: airflow_init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@postgres_db:5432/${DB_NAME}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    depends_on:
+      - postgres_db
+    networks:
+      - app_net
+
+
+  # 5. Airflow Webserver
+  airflow-webserver:
+    image: apache/airflow:2.7.1
+    container_name: airflow_webserver
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@postgres_db:5432/${DB_NAME}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__PIP_ADDITIONAL_REQUIREMENTS: pandas psycopg2-binary sqlalchemy
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./backend:/opt/airflow/backend
+      - ./datos_historicos.csv:/opt/airflow/datos/datos_historicos.csv
+    command: webserver
+    depends_on:
+      - postgres_db
+      - airflow-init
+    networks:
+      - app_net
+
+  # 6. Airflow Scheduler
+  airflow-scheduler:
+    image: apache/airflow:2.7.1
+    container_name: airflow_scheduler
+    restart: always
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@postgres_db:5432/${DB_NAME}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__PIP_ADDITIONAL_REQUIREMENTS: pandas psycopg2-binary sqlalchemy
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./backend:/opt/airflow/backend
+      - ./datos_historicos.csv:/opt/airflow/datos/datos_historicos.csv
+    command: scheduler
+    depends_on:
+      - postgres_db
+      - airflow-init
+    networks:
+      - app_net
+
+# 7. Metabase (BI y Gráficas)
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase_dashboard
+    ports:
+      - "3030:3000"
+    depends_on:
+      - postgres_db
+    networks:
+      - app_net
+
 volumes:
   postgres_data:
+
 
 networks:
   app_net:
     driver: bridge
+
+
+
+  
