@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT}:5432"
+      - "5439:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -22,9 +22,11 @@ services:
     image: flyway/flyway:9.16.0
     container_name: flyway_migrator
     command:
-      - -url=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      # <-- CAMBIO 2: Forzamos el puerto interno 5432 (Docker se comunica por este puerto internamente)
+      - -url=jdbc:postgresql://${DB_HOST}:5432/${DB_NAME} 
       - -user=${DB_USER}
       - -password=${DB_PASSWORD}
+      - -connectRetries=10  # <-- CAMBIO 3: Le damos paciencia para que espere a que Postgres encienda
       - migrate
     volumes:
       - ./backend/db/migrations:/flyway/sql
